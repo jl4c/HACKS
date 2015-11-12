@@ -1,0 +1,183 @@
+#	RENAME
+
+#	GFX0 -> IGPU
+into device label GFX0 set_label begin IGPU end;
+into_all all code_regex GFX0 replaceall_matched begin IGPU end;
+
+#	NVID > GFX0
+into_all all code_regex NVID\. replaceall_matched begin GFX0. end;
+into device label NVID parent_adr 0x00010000 set_label begin GFX0 end;
+
+#	PXSX -> ARPT
+into device label PXSX parent_label RP01 set_label begin ARPT end;
+
+#	H_EC -> EC
+into device label H_EC set_label begin EC end;
+into method label _PSR parent_label ADP1 code_regex H_EC replace_matched begin EC end;
+into method label _STA parent_label ADP1 code_regex H_EC replace_matched begin EC end;
+into method label _PTS code_regex H_EC replaceall_matched begin EC end;
+into method label _WAK code_regex H_EC replaceall_matched begin EC end;
+into method label _TMP parent_label TZ00 code_regex H_EC replace_matched begin EC end;
+into method label _TMP parent_label TZ01 code_regex H_EC replace_matched begin EC end;
+
+#	PSM0 -> PS2M
+into device label PSM0 set_label begin PS2M end;
+
+#	SAT0 -> SATA
+into device label SAT0 set_label begin SATA end;
+
+#	INJECT
+
+#	GFX0
+into device label GFX0 parent_adr 0x00010000 insert
+begin
+    Method (_DSM, 4, NotSerialized)\n
+    {\n
+	    If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+	    Return (Package()\n
+            {\n
+                "AAPL00,DualLink", Buffer() { 0x01, 0x00, 0x00, 0x00 },\n
+                "@0,backlight-control", Buffer() { 0x01, 0x00, 0x00, 0x00 },\n
+                "@0,pwm-info", Buffer() { /* 0000 */    0x02, 0x18, 0x00, 0x64, 0x90, 0x59, 0x02, 0x00, 
+                                          /* 0008 */    0x08, 0x52, 0x00, 0x00, 0xA5, 0x1C, 0x00, 0x00, 
+                                          /* 0010 */    0x00, 0x04, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00},\n
+                "@0,connector-type", Buffer() { 0x00, 0x08, 0x00, 0x00 },\n
+                "@1,connector-type", Buffer() { 0x00, 0x08, 0x00, 0x00 },\n
+                "hda-gfx", Buffer() { "onboard-1" },\n
+	    })\n
+}\n
+end;
+
+#	HDAU
+into device label P0P2 insert
+begin
+Device (HDAU)\n
+{\n
+    Name (_ADR, One)\n
+    Method (_DSM, 4, NotSerialized)\n
+    {\n
+	    If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+	    Return (Package()\n
+            {\n
+                "hda-gfx", Buffer() { "onboard-1" },\n
+	    })\n
+    }\n
+}\n
+end;
+
+#	BRIGHTNESS
+into definitionblock code_regex . insert
+begin
+Device (PNLF)\n
+{\n
+    Name (_HID, EisaId ("APP0002"))\n
+    Name (_CID, "backlight")\n
+    Name (_UID, 0x0A)\n
+    Name (_STA, 0x0B)\n
+}\n
+end;
+
+#	WAKE
+into device label EC parent_adr 0x001F0000 insert
+begin
+Name (_PRW, Package() { 0x1E, 0x04 })
+end;
+#into device label PWRB code_regex Name.*_PRW.*\n.*\n.*\n.*\n.*\}\) remove_matched;
+
+#	HDEF
+into device label HDEF insert
+begin
+Method (_DSM, 4, NotSerialized)\n
+{\n
+    If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+    Return (Package()\n
+    {\n
+	"layout-id", Buffer() { 1, 0x00, 0x00, 0x00 },\n
+        "PinConfigurations", Buffer() { },\n
+    })\n
+}\n
+end;
+
+#	MCHC
+into device label PCI0 insert begin
+Device (MCHC)\n
+{\n
+	Name (_ADR, Zero)\n
+}
+end;
+
+#	SBUS
+into device name_adr 0x001F0003 insert
+begin
+Device (BUS0)\n
+{\n
+    Name (_CID, "smbus")\n
+    Name (_ADR, Zero)\n
+    Device (DVL0)\n
+    {\n
+        Name (_ADR, 0x57)\n
+        Name (_CID, "diagsvault")\n
+        Method (_DSM, 4, NotSerialized)\n
+        {\n
+            If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+            Return (Package() { "address", 0x57 })\n
+        }\n
+    }\n
+}\n
+end;
+
+#	RTC
+into device name_hid PNP0B00 code_regex (IO\s\((?:\s*[^,]+,\s*(?:\/\/\s.*)?\s*\n)+\s*)(\dx\d+)(,\s*(?:\/\/\s.*)?\s*\n\s*\)) replaceall_matched begin %10x02%3 end;
+
+#	INI
+into method label _INI parent_label _SB.PCI0 code_regex 0x07D0 replaceall_matched begin 0x07D1 end;
+
+# KEYBOARD
+into device label PS2K insert
+begin
+Method (_DSM, 4, NotSerialized)\n
+{\n
+    If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+    Return (Package()\n
+    {\n
+        "RM,oem-id", "Intel",\n
+        "RM,oem-table-id", "CALPELLA",\n
+    })\n
+}\n
+end;
+
+#	AIRPORT
+into device label ARPT parent_label RP01 insert
+begin
+Method (_DSM, 4, NotSerialized)\n
+{\n
+    If (LEqual (Arg2, Zero)) { Return (Buffer() { 0x03 } ) }\n
+    Return (Package()\n
+    {\n
+        "compatible", "pci168c,30",\n
+    })\n
+}\n
+end;
+
+# BATTERY
+into method label B1B2 remove_entry;
+into definitionblock code_regex . insert
+begin
+Method (B1B2, 2, NotSerialized) { Return(Or(Arg0, ShiftLeft(Arg1, 8))) }\n
+end;
+into device label EC code_regex B1RA,\s+16, replace_matched begin B1R0,8,B1R1,8, end;
+into method label _BST code_regex \(B1RA, replaceall_matched begin (B1B2(B1R0,B1R1), end;
+into device label EC code_regex B1PR,\s+16, replace_matched begin B1P0,8,B1P1,8, end;
+into method label _BST code_regex \(B1PR, replaceall_matched begin (B1B2(B1P0,B1P1), end;
+into device label EC code_regex B1VO,\s+16, replace_matched begin B1V0,8,B1V1,8, end;
+into method label _BST code_regex \(B1VO, replaceall_matched begin (B1B2(B1V0,B1V1), end;
+into device label EC code_regex B1DA,\s+16, replace_matched begin B1D0,8,B1D1,8, end;
+into method label _BIF code_regex \(B1DA, replaceall_matched begin (B1B2(B1D0,B1D1), end;
+into device label EC code_regex B1DF,\s+16, replace_matched begin B1D2,8,B1D3,8, end;
+into method label _BIF code_regex \(B1DF, replaceall_matched begin (B1B2(B1D2,B1D3), end;
+into method label _PTS code_regex \(\\_SB.PCI0.LPCB.EC.B1DF, replaceall_matched begin (B1B2(\\_SB.PCI0.LPCB.EC.B1D2,\\_SB.PCI0.LPCB.EC.B1D3), end;
+into method label _WAK code_regex \(\\_SB.PCI0.LPCB.EC.B1DF, replaceall_matched begin (B1B2(\\_SB.PCI0.LPCB.EC.B1D2,\\_SB.PCI0.LPCB.EC.B1D3), end;
+into device label EC code_regex B1DV,\s+16, replace_matched begin B1D4,8,B1D5,8, end;
+into method label _BIF code_regex \(B1DV, replaceall_matched begin (B1B2(B1D4,B1D5), end;
+into device label EC code_regex B1DL,\s+16, replace_matched begin B1D6,8,B1D7,8, end;
+into method label _BIF code_regex \(B1DL, replaceall_matched begin (B1B2(B1D6,B1D7), end;
